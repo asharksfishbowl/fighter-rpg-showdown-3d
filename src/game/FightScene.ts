@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Fighter, boxesOverlap } from "./Fighter";
 import { readInput, consumeAttack } from "./input";
 import { meterGain, scaleChampStats } from "./progression";
+import { buildSfArena, updateSfParallax, type SfArena } from "./sfArena";
 import type { ChampDef, Stats } from "./types";
 
 export type FightHud = {
@@ -49,6 +50,7 @@ export class FightScene {
   private sparkLife: Float32Array;
   private shake = 0;
   private roundTime = 99;
+  private arena!: SfArena;
 
   constructor(
     canvasHost: HTMLElement,
@@ -119,83 +121,21 @@ export class FightScene {
   }
 
   private buildArena(): void {
-    // Ring floor with SF-style painted lanes
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(26, 10),
-      new THREE.MeshStandardMaterial({
-        color: 0x2a2218,
-        roughness: 0.85,
-        metalness: 0.08,
-      }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    this.scene.add(floor);
+    this.scene.background = new THREE.Color(0x1a0a28);
+    this.scene.fog = new THREE.Fog(0x2a1430, 16, 36);
 
-    const lane = new THREE.Mesh(
-      new THREE.PlaneGeometry(22, 0.18),
-      new THREE.MeshBasicMaterial({ color: 0xffd400 }),
-    );
-    lane.rotation.x = -Math.PI / 2;
-    lane.position.set(0, 0.03, 0);
-    this.scene.add(lane);
+    this.arena = buildSfArena(this.arenaTint);
+    this.scene.add(this.arena.root);
 
-    // Crowd / city backdrop slabs for depth
-    for (let i = 0; i < 7; i++) {
-      const h = 2.5 + (i % 3) * 1.4;
-      const bldg = new THREE.Mesh(
-        new THREE.BoxGeometry(2.2, h, 1.4),
-        new THREE.MeshStandardMaterial({
-          color: this.arenaTint,
-          emissive: i % 2 === 0 ? 0xff2e88 : 0x2de2e6,
-          emissiveIntensity: 0.12,
-          roughness: 0.9,
-        }),
-      );
-      bldg.position.set(-9 + i * 3, h * 0.5, -5.5 - (i % 2) * 0.8);
-      this.scene.add(bldg);
-    }
-
-    const backGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(30, 12),
-      new THREE.MeshBasicMaterial({
-        color: this.arenaTint,
-        transparent: true,
-        opacity: 0.85,
-      }),
-    );
-    backGlow.position.set(0, 4.5, -7);
-    this.scene.add(backGlow);
-
-    // Neon billboard
-    const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(6, 1.2),
-      new THREE.MeshBasicMaterial({ color: 0xffd400 }),
-    );
-    sign.position.set(0, 5.2, -4.8);
-    this.scene.add(sign);
-
-    for (const x of [this.walls.left - 0.35, this.walls.right + 0.35]) {
-      const wall = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 4.5, 4),
-        new THREE.MeshStandardMaterial({
-          color: 0x1a1510,
-          emissive: 0xffd400,
-          emissiveIntensity: 0.2,
-        }),
-      );
-      wall.position.set(x, 2.2, 0);
-      this.scene.add(wall);
-    }
-
-    // Bright key + fill so the shark albedo texture reads (not silhouette).
-    const ambient = new THREE.AmbientLight(0xffffff, 0.85);
-    const key = new THREE.DirectionalLight(0xfff2dd, 2.1);
-    key.position.set(3, 9, 7);
-    const hemi = new THREE.HemisphereLight(0xffe8ff, 0x2a2030, 0.55);
-    const rim = new THREE.PointLight(0xff7ab8, 1.2, 35);
+    // Bright key + fill so the shark albedo texture reads on the dusk stage.
+    const ambient = new THREE.AmbientLight(0xffe8d8, 0.75);
+    const key = new THREE.DirectionalLight(0xfff0d8, 2.0);
+    key.position.set(4, 10, 6);
+    const hemi = new THREE.HemisphereLight(0xffc8a0, 0x1a1020, 0.65);
+    const rim = new THREE.PointLight(0xff2e88, 1.4, 32);
     rim.position.set(-5, 3.5, 3);
-    const fill = new THREE.PointLight(0xa8f0ff, 1.0, 30);
-    fill.position.set(5, 2.5, 2);
+    const fill = new THREE.PointLight(0x7ad8ff, 1.1, 28);
+    fill.position.set(5, 2.8, 2);
     this.scene.add(ambient, key, hemi, rim, fill);
   }
 
@@ -361,6 +301,7 @@ export class FightScene {
     this.camera.position.y += (2.55 + shakeY - this.camera.position.y) * 0.08;
     this.camera.position.z += (z - this.camera.position.z) * 0.07;
     this.camera.lookAt(mid, 1.45, 0);
+    updateSfParallax(this.arena, this.camera.position.x);
   }
 
   private pushHud(): void {
