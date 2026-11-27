@@ -77,6 +77,15 @@ button,
   color: var(--accent-2);
 }
 
+.menu-build {
+  margin: 0.75rem 0 0;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ok);
+}
+
 .menu h1 {
   margin: 0 0 0.75rem;
   font-family: var(--font-display);

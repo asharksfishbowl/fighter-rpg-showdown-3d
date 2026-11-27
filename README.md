@@ -2,7 +2,7 @@
 
 Playable **Three.js** 2.5D fighter with a light RPG / empire map — claim territories, earn XP, spend STR / DEX / CON / SPI.
 
-Live (alongside Kilimanjaro): **[asharksfishbowl.com/fighter/](https://asharksfishbowl.com/fighter/)**
+Live (alongside Kilimanjaro): **[asharksfishbowl.com/arena/](https://asharksfishbowl.com/arena/)**
 
 ## Controls
 
@@ -33,7 +33,7 @@ Open `http://127.0.0.1:3851/`.
 npm run build
 ```
 
-Production assets land in `dist/` with base path `/fighter/` for Firebase Hosting next to the Kilimanjaro site.
+Production assets land in `dist/` with base path `/arena/` for Firebase Hosting next to the Kilimanjaro site.
 
 ## Stack
 
