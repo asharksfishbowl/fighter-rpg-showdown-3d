@@ -54,10 +54,10 @@ export class Fighter {
 
   private body: THREE.Group;
   private materials: THREE.MeshStandardMaterial[];
+  private accent: number;
   private speed: number;
   private rate: number;
   private animT = 0;
-  private baseEmissive: number[] = [];
 
   constructor(opts: FighterOpts) {
     this.name = opts.name;
@@ -74,9 +74,9 @@ export class Fighter {
     this.mesh = new THREE.Group();
     this.body = new THREE.Group();
 
-    const { root, materials } = cloneSharkFighter(opts.color, opts.accent);
+    const { root, materials, accent } = cloneSharkFighter(opts.color, opts.accent);
     this.materials = materials;
-    this.baseEmissive = materials.map((m) => m.emissiveIntensity);
+    this.accent = accent;
     this.body.add(root);
 
     const shadow = new THREE.Mesh(
@@ -288,9 +288,14 @@ export class Fighter {
     this.body.rotation.set(rotX, rotY, rotZ);
 
     const hitFlash = this.flash > 0;
-    for (let i = 0; i < this.materials.length; i++) {
-      const mat = this.materials[i]!;
-      mat.emissiveIntensity = hitFlash ? 1.35 : this.baseEmissive[i] ?? 0.42;
+    for (const mat of this.materials) {
+      if (hitFlash) {
+        mat.emissive.setHex(this.accent);
+        mat.emissiveIntensity = 0.85;
+      } else {
+        mat.emissive.setHex(0x000000);
+        mat.emissiveIntensity = 0;
+      }
     }
 
     this.mesh.position.set(this.x, this.y, 0);
