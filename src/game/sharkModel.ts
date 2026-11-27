@@ -16,7 +16,6 @@ export function preloadSharkFighter(): Promise<THREE.Object3D> {
   if (loadPromise) return loadPromise;
 
   const loader = new GLTFLoader();
-  // Vite base is /fighter/ in production — relative public URL works either way.
   const url = `${import.meta.env.BASE_URL}models/shark-fighter.glb`;
 
   loadPromise = loader.loadAsync(url).then((gltf) => {
@@ -29,11 +28,10 @@ export function preloadSharkFighter(): Promise<THREE.Object3D> {
     box.getSize(size);
     box.getCenter(center);
 
-    // Center horizontally, plant on ground, scale to fighter height.
     const height = Math.max(size.y, 0.001);
     const scale = TARGET_HEIGHT / height;
 
-    // Prefer facing down the longer horizontal axis toward +X.
+    // Face down the longer horizontal axis toward +X for side-view bouts.
     const facingGroup = new THREE.Group();
     if (size.z >= size.x) {
       facingGroup.rotation.y = -Math.PI / 2;
@@ -42,10 +40,21 @@ export function preloadSharkFighter(): Promise<THREE.Object3D> {
     root.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
     facingGroup.add(root);
 
-    // Re-measure after rotation so feet stay planted.
     facingGroup.updateMatrixWorld(true);
     const box2 = new THREE.Box3().setFromObject(facingGroup);
     facingGroup.position.y -= box2.min.y;
+
+    // Ensure albedo maps sample in sRGB so the Tripo texture reads correctly.
+    facingGroup.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) {
+        if (mat && "map" in mat && mat.map) {
+          mat.map.colorSpace = THREE.SRGBColorSpace;
+          mat.needsUpdate = true;
+        }
+      }
+    });
 
     template = facingGroup;
     return template;
@@ -54,16 +63,14 @@ export function preloadSharkFighter(): Promise<THREE.Object3D> {
   return loadPromise;
 }
 
-/** @deprecated Prefer preloadSharkFighter */
-export const preloadNeonShark = preloadSharkFighter;
-
 /**
- * Clone a tinted shark fighter ready to parent under a Fighter mesh.
- * Materials are cloned so player/rival colors stay independent.
+ * Clone a shark fighter. Keeps the authored albedo texture intact.
+ * `accent` only drives a small team ring + hit-flash emissive, not a full recolor.
  */
-export function cloneSharkFighter(color: number, accent: number): {
+export function cloneSharkFighter(_color: number, accent: number): {
   root: THREE.Group;
   materials: THREE.MeshStandardMaterial[];
+  accent: number;
 } {
   if (!template) {
     throw new Error("Shark fighter model not preloaded — call preloadSharkFighter() first");
@@ -81,13 +88,15 @@ export function cloneSharkFighter(color: number, accent: number): {
       const mat =
         m instanceof THREE.MeshStandardMaterial
           ? m.clone()
-          : new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.35 });
-      // Keep texture maps; nudge albedo/emissive toward team colors.
-      mat.color.lerp(new THREE.Color(color), 0.55);
-      mat.emissive.setHex(accent);
-      mat.emissiveIntensity = 0.42;
-      mat.roughness = Math.min(mat.roughness ?? 0.45, 0.55);
-      mat.metalness = Math.max(mat.metalness ?? 0.15, 0.25);
+          : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0 });
+      // Preserve texture look — do not wash albedo with team colors.
+      if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+      mat.color.setRGB(1, 1, 1);
+      mat.emissive.setHex(0x000000);
+      mat.emissiveIntensity = 0;
+      mat.roughness = mat.roughness ?? 0.9;
+      mat.metalness = mat.metalness ?? 0;
+      mat.needsUpdate = true;
       materials.push(mat);
       return mat;
     });
@@ -96,9 +105,21 @@ export function cloneSharkFighter(color: number, accent: number): {
     obj.receiveShadow = false;
   });
 
-  root.add(clone);
-  return { root, materials };
-}
+  // Team ring under the feet so player/rival stay distinct without recoloring the mesh.
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.42, 0.58, 32),
+    new THREE.MeshBasicMaterial({
+      color: accent,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.03;
+  ring.name = "team-ring";
 
-/** @deprecated Prefer cloneSharkFighter */
-export const cloneNeonShark = cloneSharkFighter;
+  root.add(clone, ring);
+  return { root, materials, accent };
+}

@@ -187,14 +187,16 @@ export class FightScene {
       this.scene.add(wall);
     }
 
-    const ambient = new THREE.AmbientLight(0x665588, 0.65);
-    const key = new THREE.DirectionalLight(0xffe8c0, 1.25);
-    key.position.set(4, 10, 6);
-    const rim = new THREE.PointLight(0xff2e88, 1.8, 35);
+    // Bright key + fill so the shark albedo texture reads (not silhouette).
+    const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+    const key = new THREE.DirectionalLight(0xfff2dd, 2.1);
+    key.position.set(3, 9, 7);
+    const hemi = new THREE.HemisphereLight(0xffe8ff, 0x2a2030, 0.55);
+    const rim = new THREE.PointLight(0xff7ab8, 1.2, 35);
     rim.position.set(-5, 3.5, 3);
-    const fill = new THREE.PointLight(0x2de2e6, 1.1, 30);
+    const fill = new THREE.PointLight(0xa8f0ff, 1.0, 30);
     fill.position.set(5, 2.5, 2);
-    this.scene.add(ambient, key, rim, fill);
+    this.scene.add(ambient, key, hemi, rim, fill);
   }
 
   private resetRound(initial: boolean): void {
