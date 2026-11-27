@@ -71,20 +71,34 @@ app.innerHTML = `
       <div class="hud-top">
         <div class="bar-block">
           <div class="bar-label" id="hud-p-name">You</div>
-          <div class="bar player"><i id="hud-p-hp"></i></div>
-          <div class="meter"><i id="hud-p-meter"></i></div>
+          <div class="hp-stack">
+            <div class="bar chip"><i id="hud-p-chip"></i></div>
+            <div class="bar player"><i id="hud-p-hp"></i></div>
+          </div>
           <div class="pips" id="hud-p-pips"></div>
         </div>
-        <div class="timer">BO3</div>
+        <div class="timer" id="hud-timer">99</div>
         <div class="bar-block right">
           <div class="bar-label" id="hud-r-name">Rival</div>
-          <div class="bar rival"><i id="hud-r-hp"></i></div>
-          <div class="meter"><i id="hud-r-meter" style="margin-left:auto"></i></div>
+          <div class="hp-stack">
+            <div class="bar chip"><i id="hud-r-chip"></i></div>
+            <div class="bar rival"><i id="hud-r-hp"></i></div>
+          </div>
           <div class="pips" id="hud-r-pips"></div>
         </div>
       </div>
       <div class="banner" id="hud-banner"></div>
-      <div class="hud-help">WASD / arrows move · hold back to block · J light · K heavy · L special</div>
+      <div class="hud-bottom">
+        <div class="meter-wrap">
+          <span>SUPER</span>
+          <div class="meter"><i id="hud-p-meter"></i></div>
+        </div>
+        <div class="hud-help">WASD move · back=block · J light · K heavy · L special</div>
+        <div class="meter-wrap right">
+          <span>SUPER</span>
+          <div class="meter"><i id="hud-r-meter"></i></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -120,11 +134,14 @@ const el = {
   hudRName: must("#hud-r-name"),
   hudPHp: must("#hud-p-hp"),
   hudRHp: must("#hud-r-hp"),
+  hudPChip: must("#hud-p-chip"),
+  hudRChip: must("#hud-r-chip"),
   hudPMeter: must("#hud-p-meter"),
   hudRMeter: must("#hud-r-meter"),
   hudPPips: must("#hud-p-pips"),
   hudRPips: must("#hud-r-pips"),
   hudBanner: must("#hud-banner"),
+  hudTimer: must("#hud-timer"),
 };
 
 function must<T extends HTMLElement = HTMLElement>(sel: string): T {
@@ -260,12 +277,15 @@ function renderStats(): void {
 }
 
 function onHud(hud: FightHud): void {
-  el.hudPName.textContent = `${hud.pName} · Lv ${hud.pLevel}`;
-  el.hudRName.textContent = `${hud.rName} · Lv ${hud.rLevel}`;
+  el.hudPName.textContent = `${hud.pName}  Lv${hud.pLevel}`;
+  el.hudRName.textContent = `${hud.rName}  Lv${hud.rLevel}`;
   el.hudPHp.style.transform = `scaleX(${hud.pHealth / hud.pMax})`;
   el.hudRHp.style.transform = `scaleX(${hud.rHealth / hud.rMax})`;
+  el.hudPChip.style.transform = `scaleX(${hud.pChip / hud.pMax})`;
+  el.hudRChip.style.transform = `scaleX(${hud.rChip / hud.rMax})`;
   el.hudPMeter.style.width = `${hud.pMeter}%`;
   el.hudRMeter.style.width = `${hud.rMeter}%`;
+  el.hudTimer.textContent = String(hud.timer).padStart(2, "0");
   el.hudPPips.innerHTML = [0, 1]
     .map((i) => `<span class="pip ${hud.pRounds > i ? "on" : ""}"></span>`)
     .join("");
