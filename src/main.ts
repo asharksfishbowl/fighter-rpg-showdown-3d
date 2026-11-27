@@ -33,12 +33,13 @@ if (!app) throw new Error("#app missing");
 
 app.innerHTML = `
   <section class="screen menu" id="screen-menu">
-    <p class="menu-kicker">A Shark's Fishbowl · Arcade</p>
+    <p class="menu-kicker">A Shark's Fishbowl · Arcade · Shark Fighters</p>
     <h1>Fighter RPG<br/>Showdown 3D</h1>
     <p>
       2.5D neon brawls with RPG leveling. Claim the map, spend stats, feel every
       jab hit harder. Keyboard: move with WASD / arrows, J light, K heavy, L special (50 meter).
     </p>
+    <p class="menu-build" id="build-stamp">Build: shark-arena</p>
     <div class="btn-row">
       <button class="btn" id="btn-new">New Game</button>
       <button class="btn btn-ghost" id="btn-continue" disabled>Continue</button>
