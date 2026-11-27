@@ -58,6 +58,9 @@ export class Fighter {
   private speed: number;
   private rate: number;
   private animT = 0;
+  /** Full length of the current attack window (for 0→1 progress). */
+  private attackDuration = 0;
+  private moveDx = 0;
 
   constructor(opts: FighterOpts) {
     this.name = opts.name;
@@ -140,13 +143,21 @@ export class Fighter {
     }
     if (kind === "special" && this.meter < 50) return false;
     this.attackKind = kind;
+    // Slightly longer windows so each attack reads as its own animation.
     const dur =
-      kind === "light" ? 0.16 / this.rate : kind === "heavy" ? 0.28 / this.rate : 0.34;
+      kind === "light" ? 0.28 / this.rate : kind === "heavy" ? 0.48 / this.rate : 0.62;
+    this.attackDuration = dur;
     this.attackActive = dur;
     this.attackCooldown =
-      kind === "light" ? 0.28 / this.rate : kind === "heavy" ? 0.55 / this.rate : 0.7;
+      kind === "light" ? 0.36 / this.rate : kind === "heavy" ? 0.7 / this.rate : 0.9;
     if (kind === "special") this.meter -= 50;
     return true;
+  }
+
+  /** 0 at start → 1 at end of the active attack. */
+  private attackProgress(): number {
+    if (this.attackActive <= 0 || this.attackDuration <= 0) return 0;
+    return 1 - THREE.MathUtils.clamp(this.attackActive / this.attackDuration, 0, 1);
   }
 
   damageFor(kind: Exclude<AttackKind, null>): number {
@@ -178,6 +189,7 @@ export class Fighter {
       let dx = 0;
       if (input.left) dx -= 1;
       if (input.right) dx += 1;
+      this.moveDx = dx;
       if (!this.blocking && !this.crouching) this.x += dx * this.speed * dt;
       else if (this.crouching) this.x += dx * this.speed * 0.35 * dt;
       if (input.up && this.grounded) {
@@ -187,6 +199,8 @@ export class Fighter {
       if (input.light) this.tryAttack("light");
       else if (input.heavy) this.tryAttack("heavy");
       else if (input.special) this.tryAttack("special");
+    } else {
+      this.moveDx = 0;
     }
 
     this.applyPhysics(dt, walls);
@@ -207,6 +221,7 @@ export class Fighter {
 
     if (this.attackActive <= 0) {
       const dir = target.x > this.x ? 1 : -1;
+      this.moveDx = dist > 1.5 ? dir : dist < 0.9 ? -dir : 0;
       if (dist > 1.5) this.x += dir * this.speed * 0.85 * dt;
       else if (dist < 0.9) this.x -= dir * this.speed * 0.5 * dt;
       if (this.grounded && Math.random() < 0.4 * dt) {
@@ -219,6 +234,8 @@ export class Fighter {
         else if (roll > 0.55) this.tryAttack("heavy");
         else this.tryAttack("light");
       }
+    } else {
+      this.moveDx = 0;
     }
 
     this.applyPhysics(dt, walls);
@@ -256,36 +273,55 @@ export class Fighter {
 
   private syncMesh(): void {
     const crouch = this.crouching ? 1 : 0;
-    const idleBob = Math.sin(this.animT * 4.2) * 0.03;
-    let bodyY = THREE.MathUtils.lerp(0, -0.35, crouch) + (this.grounded ? idleBob : 0);
-    let rotX = THREE.MathUtils.lerp(0, 0.45, crouch);
-    let rotZ = 0;
+    const walkPhase = this.animT * (this.moveDx !== 0 ? 10 : 4.2);
+    const idleBob = Math.sin(walkPhase) * (this.moveDx !== 0 ? 0.06 : 0.03);
+    let bodyY = THREE.MathUtils.lerp(0, -0.38, crouch) + (this.grounded ? idleBob : 0);
+    let rotX = THREE.MathUtils.lerp(0, 0.48, crouch);
     let rotY = 0;
+    let rotZ = this.moveDx !== 0 && !this.crouching ? Math.sin(walkPhase) * 0.08 : 0;
     let lunge = 0;
+    let squashY = 1;
+    let squashZ = 1;
 
     if (this.blocking) {
-      rotX = 0.15;
-      rotY = -0.25 * this.facing;
+      rotX = 0.22;
+      rotY = -0.35;
       bodyY += 0.02;
+      lunge = -0.12;
+      squashZ = 0.92;
     } else if (this.attackActive > 0 && this.attackKind) {
-      const punch =
-        this.attackKind === "special" ? 0.55 : this.attackKind === "heavy" ? 0.42 : 0.28;
-      lunge = punch;
-      rotX = -0.35;
-      rotZ = this.attackKind === "special" ? 0.2 : 0.08;
+      const pose = this.poseForAttack(this.attackKind, this.attackProgress());
+      bodyY += pose.bodyY;
+      rotX += pose.rotX;
+      rotY += pose.rotY;
+      rotZ += pose.rotZ;
+      lunge = pose.lunge;
+      squashY = pose.squashY;
+      squashZ = pose.squashZ;
     } else if (this.hitstun > 0) {
-      rotX = 0.2;
-      rotZ = 0.35;
-      bodyY += 0.05;
+      const t = Math.min(1, this.hitstun * 3);
+      rotX = 0.35 * t;
+      rotZ = 0.55 * t;
+      lunge = -0.2 * t;
+      bodyY += 0.08 * t;
+      squashY = 1 + 0.08 * t;
+    } else if (this.dead) {
+      rotZ = 1.2;
+      bodyY = -0.15;
+      lunge = -0.35;
     }
 
-    if (!this.grounded) {
-      rotX -= 0.25;
-      bodyY += 0.05;
+    if (!this.grounded && !(this.attackActive > 0 && this.attackKind === "special")) {
+      rotX -= 0.28;
+      bodyY += 0.06;
+      squashY = 1.06;
+      squashZ = 0.94;
     }
 
-    this.body.position.set(lunge * this.facing, bodyY, 0);
+    // Local +X is toward the opponent after normalize; scale.x mirrors for facing -1.
+    this.body.position.set(lunge, bodyY, 0);
     this.body.rotation.set(rotX, rotY, rotZ);
+    this.body.scale.set(1, squashY, squashZ);
 
     const hitFlash = this.flash > 0;
     for (const mat of this.materials) {
@@ -299,8 +335,75 @@ export class Fighter {
     }
 
     this.mesh.position.set(this.x, this.y, 0);
-    // Mirror for facing — humanoid shark reads correctly flipped on X.
     this.mesh.scale.set(this.facing, 1, 1);
+  }
+
+  /**
+   * Distinct procedural attack arcs on the rigid shark mesh.
+   * Progress 0 = windup, ~0.45 = impact, 1 = recovery.
+   */
+  private poseForAttack(
+    kind: Exclude<AttackKind, null>,
+    p: number,
+  ): {
+    bodyY: number;
+    rotX: number;
+    rotY: number;
+    rotZ: number;
+    lunge: number;
+    squashY: number;
+    squashZ: number;
+  } {
+    const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+    const easeIn = (t: number) => t * t;
+    const pulse = (t: number, peak = 0.45) => {
+      if (t <= peak) return easeIn(t / peak);
+      return 1 - easeOut((t - peak) / (1 - peak));
+    };
+
+    if (kind === "light") {
+      // Quick jab: short lean + snap lunge, little airtime.
+      const hit = pulse(p, 0.4);
+      const wind = p < 0.25 ? easeIn(p / 0.25) : 1 - (p - 0.25) / 0.75;
+      return {
+        bodyY: 0.02 * hit,
+        rotX: -0.55 * hit + 0.15 * Math.max(0, wind),
+        rotY: 0.15 * hit,
+        rotZ: 0.35 * hit,
+        lunge: 0.55 * hit - 0.12 * Math.max(0, 1 - p * 4),
+        squashY: 1 - 0.06 * hit,
+        squashZ: 1 + 0.1 * hit,
+      };
+    }
+
+    if (kind === "heavy") {
+      // Haymaker / shoulder check: big windup lean back, then crash forward.
+      const wind = p < 0.35 ? easeIn(p / 0.35) : Math.max(0, 1 - (p - 0.35) / 0.2);
+      const hit = p < 0.35 ? 0 : pulse((p - 0.35) / 0.65, 0.35);
+      return {
+        bodyY: 0.04 * wind + 0.1 * hit,
+        rotX: 0.55 * wind - 0.75 * hit,
+        rotY: -0.2 * wind + 0.25 * hit,
+        rotZ: -0.15 * wind + 0.55 * hit,
+        lunge: -0.28 * wind + 0.85 * hit,
+        squashY: 1 + 0.08 * wind - 0.12 * hit,
+        squashZ: 1 - 0.05 * wind + 0.14 * hit,
+      };
+    }
+
+    // Special: rising spin slam — hop, full Y spin, stomp.
+    const lift = p < 0.55 ? pulse(p / 0.55, 0.5) : 0;
+    const spin = p < 0.7 ? easeOut(p / 0.7) : 1;
+    const stomp = p < 0.55 ? 0 : pulse((p - 0.55) / 0.45, 0.35);
+    return {
+      bodyY: 0.55 * lift - 0.12 * stomp,
+      rotX: -0.4 * lift + 0.5 * stomp,
+      rotY: Math.PI * 2 * spin,
+      rotZ: 0.25 * Math.sin(spin * Math.PI * 2),
+      lunge: 0.25 * lift + 0.7 * stomp,
+      squashY: 1 + 0.12 * lift - 0.18 * stomp,
+      squashZ: 1 - 0.08 * lift + 0.16 * stomp,
+    };
   }
 }
 

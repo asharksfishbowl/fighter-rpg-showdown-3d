@@ -31,10 +31,14 @@ export function preloadSharkFighter(): Promise<THREE.Object3D> {
     const height = Math.max(size.y, 0.001);
     const scale = TARGET_HEIGHT / height;
 
-    // Face down the longer horizontal axis toward +X for side-view bouts.
+    // Face +X for side-view bouts (player on the left looks right at the rival).
+    // Tripo humanoids usually look down +Z; +90° Y maps that to +X.
     const facingGroup = new THREE.Group();
     if (size.z >= size.x) {
-      facingGroup.rotation.y = -Math.PI / 2;
+      facingGroup.rotation.y = Math.PI / 2;
+    } else {
+      // Already longest on X — spin 180 if the nose pointed -X.
+      facingGroup.rotation.y = Math.PI;
     }
     root.scale.setScalar(scale);
     root.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
