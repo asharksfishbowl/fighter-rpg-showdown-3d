@@ -20,7 +20,13 @@ import {
   newGame,
   writeSave,
 } from "./game/save";
+import { preloadSharkFighter } from "./game/sharkModel";
 import type { MatchOutcome, SaveData, Stats, TerritoryId } from "./game/types";
+
+// Warm the humanoid shark GLB so the first fight starts without a hitch.
+void preloadSharkFighter().catch((err) => {
+  console.error("Failed to preload shark fighter model", err);
+});
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("#app missing");
@@ -295,15 +301,24 @@ function onHud(hud: FightHud): void {
   el.hudBanner.textContent = hud.banner;
 }
 
-function startFight(territoryId: TerritoryId): void {
+async function startFight(territoryId: TerritoryId): Promise<void> {
   if (!save) return;
   const t = getTerritory(territoryId);
   if (!t.champ) return;
   stopFightLoop();
   fight?.dispose();
   unbindInput?.();
-  unbindInput = bindInput();
   show("fight");
+  el.hudBanner.textContent = "LOADING";
+  try {
+    await preloadSharkFighter();
+  } catch (err) {
+    console.error(err);
+    el.hudBanner.textContent = "MODEL FAILED";
+    show("map");
+    return;
+  }
+  unbindInput = bindInput();
   fight = new FightScene(el.fight, {
     playerName: save.fighter.name,
     playerLevel: save.fighter.level,
